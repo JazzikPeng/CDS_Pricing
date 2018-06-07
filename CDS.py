@@ -9,7 +9,7 @@ __credits__ = Lehman Brothers, John Hull's 'Option'
 __version__ = "1.0.1"
 __maintainer__ = "Zhejian Peng"
 __email__ = 'zhejianpeng@yahoo.com'
-__status__ = "Developing"
+__status__ = "Version 1.0"
 
 __update__ =
 '''
