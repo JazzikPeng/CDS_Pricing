@@ -7,5 +7,6 @@ You can call cds.marktoMarketValue() to calculate the current fair market value 
 
 
 
-References
+References:
+
 D. O\'kane and S. Turnbull. Valuation of Credit Default Swaps. Lehman Brothers Quantitative Credit Research (Apr. 2003)
