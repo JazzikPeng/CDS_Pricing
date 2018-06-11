@@ -29,7 +29,7 @@ class cds:
     # global spread
 
     def __init__(self, cdsTenors, cdsSpreads, premiumFrequency, defaultFrequency,
-                 accruedPremiumFlag, contract_spread=None, payment_date=None, notional=None):
+                 accruedPremiumFlag, contract_spread=None, payment_date=None, notional=None, recoveryRate=None):
 
         self.cdsTenors = cdsTenors
         self.cdsSpreads = cdsSpreads
@@ -216,10 +216,11 @@ class cds:
 
             return (1-recoveryRate)*annuity
 
-    def bootstrapCDSspread(self, yieldcurveTenor, yieldcurveRate, cdsTenors, cdsSpreads, recoveryRate):
+    def bootstrapCDSspread(self, yieldcurveTenor, yieldcurveRate, cdsTenors, cdsSpreads):
         premiumFrequency = self.premiumFrequency
         defaultFrequency = self.defaultFrequency
         accruedPremiumFlag = self.accruedPremiumFlag
+        recoveryRate = self.recoveryRate
 
         def objfunFindHazardRate(h, creditcurveSP,  creditcurveTenor, cdsMaturity, spread):
             # print(cdsMaturity)
@@ -305,17 +306,18 @@ class cds:
             spread = spread
         else:
             spread = self.contract_spread
-        dl = test_cds.calculateDefaultLeg(creditcurveTenor, creditcurveSP, yieldcurveTenor, yieldcurveRate,
-                                          creditcurveTenor[-1], self.defaultFrequency, self.recoveryRate, 1)
-        rpv01 = test_cds.calculatePremiumLeg(days, survprob, yieldcurveTenor, yieldcurveRate,
-                                             creditcurveTenor[-1], self.premiumFrequency, self.accruedPremiumFlag, 1, 1)
+        dl = self.calculateDefaultLeg(creditcurveTenor, creditcurveSP, yieldcurveTenor, yieldcurveRate,
+                                      creditcurveTenor[-1], self.defaultFrequency, self.recoveryRate, 1)
+        rpv01 = self.calculatePremiumLeg(creditcurveTenor, creditcurveSP, yieldcurveTenor, yieldcurveRate,
+                                         creditcurveTenor[-1], self.premiumFrequency, self.accruedPremiumFlag, 1, 1)
 
         breakevenSpread = dl / rpv01
         print('The BreakEven Spread is:', breakevenSpread)
         print('RiskyPV01 is :', rpv01)
         return (breakevenSpread - spread)*notional*rpv01
 
-    def __marktoMarketValue(self, yieldcurveTenor, yieldcurveRate, cdsTenors, cdsSpreads, survprob, notional, spread):
+
+'''    def __marktoMarketValue(self, yieldcurveTenor, yieldcurveRate, cdsTenors, cdsSpreads, survprob, notional, spread):
         if self.notional == None:
             notional = notional
         else:
@@ -332,151 +334,146 @@ class cds:
             temp = self.getDiscountFactor(yieldcurveTenor, yieldcurveRate, i)
             discount_factor.append(temp)
         payment_pv = [x*y for x, y in zip(expected_payment, discount_factor)]
-        return np.sum(payment_pv)*notional
+        return np.sum(payment_pv)*notional'''
 
 
-yieldcurveTenor = [0.5, 1, 2, 3, 4, 5]
-yieldcurveRate = [0.01350, 0.01430, 0.0190, 0.02470, 0.02936, 0.03311]
-creditcurveTenor = [1, 3, 5, 7]
-creditcurveSP = [0.99, 0.98, 0.95, 0.92]
-cdsTenors = [1, 2, 3, 4, 5]
-cdsSpreads = [0.0110, 0.0120, 0.0130, 0.0140, 0.0150]
-premiumFrequency = 4
-defaultFrequency = 12
-accruedPremiumFlag = True
-recoveryRate = 0.40
+if __name__ == "__main__":
+    yieldcurveTenor = [0.5, 1, 2, 3, 4, 5]
+    yieldcurveRate = [0.01350, 0.01430, 0.0190, 0.02470, 0.02936, 0.03311]
+    creditcurveTenor = [1, 3, 5, 7]
+    creditcurveSP = [0.99, 0.98, 0.95, 0.92]
+    cdsTenors = [1, 2, 3, 4, 5]
+    cdsSpreads = [0.0110, 0.0120, 0.0130, 0.0140, 0.0150]
+    premiumFrequency = 4
+    defaultFrequency = 12
+    accruedPremiumFlag = True
+    recoveryRate = 0.40
 
+    # Define Unit Test
+    def unit_test_getDiscountFactor():
+        def helper(t, yield_true):
+            epsilon = 10**-6
+            test_cds = cds(cdsTenors, cdsSpreads, premiumFrequency,
+                           defaultFrequency, accruedPremiumFlag, 0.02)
+            rate = test_cds.getDiscountFactor(
+                yieldcurveTenor, yieldcurveRate, t)
+            print('test t =', t, ', yieldRate = ', rate)
+            error = rate - yield_true
+            # print(error)
+            assert((abs(error) < epsilon))
 
-# Define Unit Test
-def unit_test_getDiscountFactor():
-    def helper(t, yield_true):
-        epsilon = 10**-6
-        test_cds = cds(cdsTenors, cdsSpreads, premiumFrequency,
-                       defaultFrequency, accruedPremiumFlag, 0.02)
-        rate = test_cds.getDiscountFactor(yieldcurveTenor, yieldcurveRate, t)
-        print('test t =', t, ', yieldRate = ', rate)
-        error = rate - yield_true
-        # print(error)
-        assert((abs(error) < epsilon))
+        test_t = [-1, 0, 1, 2, 3, 4, 5, 6, 1.5]
+        yield_ans = [-1, 1.000000, 0.985802, 0.962713,
+                     0.928579, 0.889194, 0.847427, 0.819829, 0.975334]
+        print('TEST: cds.getDiscountFactor()')
+        for i, j in zip(test_t, yield_ans):
+            # print(i, j)
+            helper(i, j)
 
-    test_t = [-1, 0, 1, 2, 3, 4, 5, 6, 1.5]
-    yield_ans = [-1, 1.000000, 0.985802, 0.962713,
-                 0.928579, 0.889194, 0.847427, 0.819829, 0.975334]
-    print('TEST: cds.getDiscountFactor()')
-    for i, j in zip(test_t, yield_ans):
-        # print(i, j)
-        helper(i, j)
+    def unit_test_getSurvivalProbability():
+        def helper(t, sp_true):
+            epsilon = 10**-6
+            test_cds = cds(cdsTenors, cdsSpreads, premiumFrequency,
+                           defaultFrequency, accruedPremiumFlag, 0.02)
+            sp = test_cds.getSurvivalProbability(
+                creditcurveTenor, creditcurveSP, t)
+            print('test t =', t, ', survival probability = ', sp)
+            error = sp - sp_true
+            # print(error)
+            assert((abs(error) < epsilon))
 
+        print('\nTEST: cds.getSurvivalProbability()')
 
-def unit_test_getSurvivalProbability():
-    def helper(t, sp_true):
-        epsilon = 10**-6
-        test_cds = cds(cdsTenors, cdsSpreads, premiumFrequency,
-                       defaultFrequency, accruedPremiumFlag, 0.02)
-        sp = test_cds.getSurvivalProbability(
-            creditcurveTenor, creditcurveSP, t)
-        print('test t =', t, ', survival probability = ', sp)
-        error = sp - sp_true
-        # print(error)
-        assert((abs(error) < epsilon))
+        test_t = [-1, 0, 1, 3, 5, 7, 10, 5.5]
+        sp_ans = [-1, 1, 0.990000, 0.980000,
+                  0.950000, 0.920000, 0.876767, 0.942410]
+        for i, j in zip(test_t, sp_ans):
+            helper(i, j)
 
-    print('\nTEST: cds.getSurvivalProbability()')
+    def unit_test_calculatePremiumLeg():
+        def helper(param, pl_ture):
+            epsilon = 10**-6
+            maturity, spread, accruedPremium, h = param
+            test_cds = cds(cdsTenors, cdsSpreads, premiumFrequency,
+                           defaultFrequency, accruedPremiumFlag, 0.02)
+            pl = test_cds.calculatePremiumLeg(creditcurveTenor, creditcurveSP, yieldcurveTenor, yieldcurveRate,
+                                              maturity, 4, accruedPremium, spread, h)
+            print('test param =', param, ', premium leg = ', pl)
+            error = pl - pl_ture
+            assert(abs(error) < epsilon)
 
-    test_t = [-1, 0, 1, 3, 5, 7, 10, 5.5]
-    sp_ans = [-1, 1, 0.990000, 0.980000,
-              0.950000, 0.920000, 0.876767, 0.942410]
-    for i, j in zip(test_t, sp_ans):
-        helper(i, j)
+        param = [[4, 0.02, True, 0.01881194], [-1, 0.02,
+                                               True, 0.01], [4, 0.02, False, 0.01], [4, 0.1, True, 0.1], [8, 0.1, True, 0.1]]
+        pl_ans = [0.0750303, 0, 0.074947, 0.375151623674, 0.678580]
 
+        print('\nTEST: cds.calculatePremiumLeg()')
+        for i, j in zip(param, pl_ans):
+            helper(i, j)
 
-def unit_test_calculatePremiumLeg():
-    def helper(param, pl_ture):
-        epsilon = 10**-6
-        maturity, spread, accruedPremium, h = param
-        test_cds = cds(cdsTenors, cdsSpreads, premiumFrequency,
-                       defaultFrequency, accruedPremiumFlag, 0.02)
-        pl = test_cds.calculatePremiumLeg(creditcurveTenor, creditcurveSP, yieldcurveTenor, yieldcurveRate,
-                                          maturity, 4, accruedPremium, spread, h)
-        print('test param =', param, ', premium leg = ', pl)
-        error = pl - pl_ture
-        assert(abs(error) < epsilon)
+    def unit_test_calculateDefaultLeg():
 
-    param = [[4, 0.02, True, 0.01881194], [-1, 0.02,
-                                           True, 0.01], [4, 0.02, False, 0.01], [4, 0.1, True, 0.1], [8, 0.1, True, 0.1]]
-    pl_ans = [0.0750303, 0, 0.074947, 0.375151623674, 0.678580]
+        def helper(param, dl_true):
+            epsilon = 10**-6
+            maturity, defaultFrequency, recoveryRate, h = param
+            test_cds = cds(cdsTenors, cdsSpreads, premiumFrequency,
+                           defaultFrequency, accruedPremiumFlag, 0.02)
+            dl = test_cds.calculateDefaultLeg(creditcurveTenor, creditcurveSP, yieldcurveTenor, yieldcurveRate,
+                                              maturity, defaultFrequency, recoveryRate, h)
+            print('test param = ', param, ', default leg =', dl)
+            error = dl - dl_true
+            assert(abs(error) < epsilon)
 
-    print('\nTEST: cds.calculatePremiumLeg()')
-    for i, j in zip(param, pl_ans):
-        helper(i, j)
+        param = [[4, 12, 0.4, 0.01881194], [0, 0, 0, 0],
+                 [-1, 12, 0.4, 0.01], [8, 12, 0.4, 0.01], [10, 12, 0.5, 0.01], [3.4, 100, 0.6, 0.1]]
+        pl_ans = [0.019947, 0, 0, 0.046710, 0.045612, 0.010053]
 
+        print('\nTEST: cds.calculateDefaultLeg()')
+        for i, j in zip(param, pl_ans):
+            helper(i, j)
 
-def unit_test_calculateDefaultLeg():
+    # Start Unit Test
+    unit_test_getDiscountFactor()
+    unit_test_getSurvivalProbability()
+    unit_test_calculatePremiumLeg()
+    unit_test_calculateDefaultLeg()
 
-    def helper(param, dl_true):
-        epsilon = 10**-6
-        maturity, defaultFrequency, recoveryRate, h = param
-        test_cds = cds(cdsTenors, cdsSpreads, premiumFrequency,
-                       defaultFrequency, accruedPremiumFlag, 0.02)
-        dl = test_cds.calculateDefaultLeg(creditcurveTenor, creditcurveSP, yieldcurveTenor, yieldcurveRate,
-                                          maturity, defaultFrequency, recoveryRate, h)
-        print('test param = ', param, ', default leg =', dl)
-        error = dl - dl_true
-        assert(abs(error) < epsilon)
+    # test BootStraping
+    print('\nTEST: cds.bootstrapCDSspread()')
 
-    param = [[4, 12, 0.4, 0.01881194], [0, 0, 0, 0],
-             [-1, 12, 0.4, 0.01], [8, 12, 0.4, 0.01], [10, 12, 0.5, 0.01], [3.4, 100, 0.6, 0.1]]
-    pl_ans = [0.019947, 0, 0, 0.046710, 0.045612, 0.010053]
+    print()
+    test_cds = cds(cdsTenors, cdsSpreads, premiumFrequency,
+                   defaultFrequency, True, 0.02, recoveryRate=recoveryRate)
+    rate, result = test_cds.bootstrapCDSspread(
+        yieldcurveTenor, yieldcurveRate, cdsTenors, cdsSpreads)
+    print('rate, result', rate, result)
 
-    print('\nTEST: cds.calculateDefaultLeg()')
-    for i, j in zip(param, pl_ans):
-        helper(i, j)
+    day_count = [0.261111, 0.252778, 0.252778, 0.252778, 0.252778, 0.252778, 0.252778, 0.252778, 0.255556, 0.252778,
+                 0.250000, 0.255556, 0.255556, 0.252778, 0.250000, 0.255556, 0.255556]
+    days = np.cumsum(day_count)
+    # print(days)
+    interp_spread = test_cds.interpolateSpread(days)
+    # assert(interp_spread == [0.010261111, 0.010513889, 0.010766667000000001, 0.011019444999999999, 0.011272223,
+    #                          0.011525001, 0.011777779, 0.012030557000000001, 0.012286113, 0.012538891, 0.012788891,
+    #                          0.013044446999999999, 0.013300002999999999, 0.014313892999999999])
 
+    # print((interp_spread))
+    # Calculate The Survival Probability of Lehman's Contract:
+    print('\nCalculate the Survival Probability in Lehman Contrat')
 
-# Start Unit Test
-unit_test_getDiscountFactor()
-unit_test_getSurvivalProbability()
-unit_test_calculatePremiumLeg()
-unit_test_calculateDefaultLeg()
+    hazard_rate, survprob = test_cds.bootstrapCDSspread(
+        yieldcurveTenor, yieldcurveRate, days, interp_spread)
+    print('Hazard_rate', survprob)
 
-# test BootStraping
-print('\nTEST: cds.bootstrapCDSspread()')
+    print('\nCalculate the MTM Value in Lehman Contrat')
 
-print()
-test_cds = cds(cdsTenors, cdsSpreads, premiumFrequency,
-               defaultFrequency, True, 0.02)
-rate, result = test_cds.bootstrapCDSspread(
-    yieldcurveTenor, yieldcurveRate, cdsTenors, cdsSpreads, recoveryRate)
-print(rate, result)
+    temp = test_cds.marktoMarketValue(
+        days, survprob, yieldcurveTenor, yieldcurveRate, 0.02, 10000000)
+    print('The Current Value of Contract is', temp)
 
-
-day_count = [0.261111, 0.252778, 0.252778, 0.252778, 0.252778, 0.252778, 0.252778, 0.252778, 0.255556, 0.252778,
-             0.250000, 0.255556, 0.255556, 0.252778, 0.250000, 0.255556, 0.255556]
-days = np.cumsum(day_count)
-# print(days)
-interp_spread = test_cds.interpolateSpread(days)
-# assert(interp_spread == [0.010261111, 0.010513889, 0.010766667000000001, 0.011019444999999999, 0.011272223,
-#                          0.011525001, 0.011777779, 0.012030557000000001, 0.012286113, 0.012538891, 0.012788891,
-#                          0.013044446999999999, 0.013300002999999999, 0.014313892999999999])
-
-# print((interp_spread))
-# Calculate The Survival Probability of Lehman's Contract:
-print('\nCalculate the Survival Probability in Lehman Contrat')
-
-hazard_rate, survprob = test_cds.bootstrapCDSspread(
-    yieldcurveTenor, yieldcurveRate, days, interp_spread, recoveryRate)
-print('Hazard_rate', survprob)
-
-print('\nCalculate the MTM Value in Lehman Contrat')
-
-temp = test_cds.marktoMarketValue(
-    days, survprob, yieldcurveTenor, yieldcurveRate, 0.02, 100000000)
-print('The Current Value of Contract is', temp)
-
-
-# cdsValue = test_cds.marktoMarketValue(
-#     yieldcurveTenor, yieldcurveRate, days, interp_spread, survprob, 1, 0.02)
-# print(cdsValue)
-import matplotlib.pyplot as plt
-# print(days)
-# plt.plot(days, survprob)
-# plt.show()
+    # cdsValue = test_cds.marktoMarketValue(
+    #     yieldcurveTenor, yieldcurveRate, days, interp_spread, survprob, 1, 0.02)
+    # print(cdsValue)
+    import matplotlib.pyplot as plt
+    # print(days)
+    # plt.plot(days, survprob)
+    # plt.show()
